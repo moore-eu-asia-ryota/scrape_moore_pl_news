@@ -1,0 +1,48 @@
+name: Scrape Moore Polska Articles
+
+on:
+  schedule:
+    # Runs every day at 07:00 UTC
+    - cron: "0 7 * * *"
+  workflow_dispatch:   # allow manual trigger from the Actions tab
+
+permissions:
+  contents: write      # needed to commit the updated CSV back to the repo
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Check out the repository (includes the existing CSV if any) ──────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python ──────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # ── 3. Install dependencies ───────────────────────────────────────────
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── 4. Run the scraper ────────────────────────────────────────────────
+      - name: Run scraper
+        run: python scrape_moore_polska.py
+
+      # ── 5. Commit & push the updated CSV (only if it changed) ─────────────
+      - name: Commit updated CSV
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add moore_polska_articles.csv
+          if git diff --cached --quiet; then
+            echo "No new articles found – nothing to commit."
+          else
+            COUNT=$(git diff --cached --numstat moore_polska_articles.csv | awk '{print $1}')
+            git commit -m "chore: add ${COUNT} new Moore Polska article(s) [$(date -u +'%Y-%m-%d')]"
+            git push
+          fi
